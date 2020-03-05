@@ -57,13 +57,17 @@ glm::vec3 current_pos = glm::vec3(1.0f);
 //mis cosas
 glm::mat4 model2 = glm::mat4(1.0f);
 glm::mat4 model = glm::mat4(1.0f);
+float EyeSeparation = 0.065f;
+glm::vec3 current_pos1 = glm::vec3(1.0f);
 
+glm::mat4 m_view1 = glm::mat4(1);
 void changeCamera(aruco::Marker cameraMarker)
 {
 	current_pos = glm::vec3(-cameraMarker.Tvec.at<float>(0, 0),
 		cameraMarker.Tvec.at<float>(1, 0),
 		-cameraMarker.Tvec.at<float>(2, 0));
-
+	current_pos1 = current_pos - glm::vec3(EyeSeparation/2, 0, 0);
+	current_pos = current_pos + glm::vec3(EyeSeparation / 2, 0, 0);
 	cv::Mat current_rotation;
 	cv::Rodrigues(cameraMarker.Rvec, current_rotation);
 	cv::Mat orientation = current_rotation * cv::Vec3f(0.0f, 1.0f, 0.0f);
@@ -71,6 +75,17 @@ void changeCamera(aruco::Marker cameraMarker)
 	std::cout << "Marker rotation: " << TheMarkers[0].Rvec << "\n";
 	m_view = glm::lookAt(
 		current_pos,            // camera pos
+		glm::vec3(0, 0, 0),       // look at 
+
+		//glm::vec3(0,-1,0)     // up vector (set to 0,-1,0 to look upside-down)
+
+		glm::vec3(orientation.at<float>(0, 0),
+			orientation.at<float>(1, 0),
+			orientation.at<float>(2, 0))
+	);
+
+	m_view1 = glm::lookAt(
+		current_pos1,            // camera pos
 		glm::vec3(0, 0, 0),       // look at 
 
 		//glm::vec3(0,-1,0)     // up vector (set to 0,-1,0 to look upside-down)
@@ -232,6 +247,7 @@ int main(int argc, char **argv)
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
 
+		glColorMask(false, true, true, false);
 		// activate shader
 		ourShader.use();
 
@@ -275,12 +291,9 @@ int main(int argc, char **argv)
 
 			}
 			std::cout << "Marker id: " << TheMarkers[0].id << "\n";
-						
-					
-					
 					
 		}
-		//	std::cout << "No marker detected\n";
+		
 			ourShader.setMat4("view", m_view);
 			ourShader.setVec3("viewPos", current_pos);
 		
@@ -306,7 +319,8 @@ int main(int argc, char **argv)
 
 		// draws
 		glDrawArrays(GL_TRIANGLES, 0, 36);
-
+		glBindVertexArray(0);
+		glUseProgram(0);
 		//shader 2
 		ourShader.use();
 		
@@ -324,7 +338,7 @@ int main(int argc, char **argv)
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 
 		glBindVertexArray(0);
-
+		
 		ourShader.setInt("material.specular", 0);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, tools->m_textures[2]);
@@ -342,6 +356,134 @@ int main(int argc, char **argv)
 		float screen_width = 2.0f;
 		glm::mat4 projection2D = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
 		glm::mat4 model2D = glm::translate(glm::mat4(1.0f), glm::vec3((float)SCR_WIDTH / 2.0f - 160.0f, 540.0f, 0.f));
+
+		ourShader2D.setMat4("projection2D", projection2D);
+		//std::cout << "glGetUniformLocation " << " :" << glGetUniformLocation(ourShader2D.ID, "projection2D");
+		ourShader2D.setMat4("model2D", model2D);
+
+		glBindVertexArray(tools->m_VAOs[0]);                 //VAOs[0] is 2D quad for cam input
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glBindVertexArray(0);
+
+		glUseProgram(0);
+
+		glClear(GL_DEPTH_BUFFER_BIT);
+
+		glColorMask(true, false, false, false); //FILTRO ULTIMO
+		// activate shader
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[0]);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
+		ourShader.use();
+
+		// create transformations
+		current_view = glm::mat4(1.0f);
+		projection = glm::mat4(1.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+
+		// pass transformation matrices to the shader
+		ourShader.setMat4("projection", projection);
+		//ID del que se mueve: 2
+		//ID del quieto: 1
+		cameraMarker; //Este es el marker que mueve la cámara (el que te pones en la frente)
+		movementMarker; //Este es el marker que mueve el segundo cubo
+
+		if (TheMarkers.size() > 0)
+		{
+
+			if (TheMarkers[0].id == 1)
+			{
+				cameraMarker = TheMarkers[0];
+				changeCamera(cameraMarker);
+			}
+			else
+			{
+				movementMarker = TheMarkers[0];
+				changePosition(movementMarker);
+			}
+			if (TheMarkers.size() > 1)
+			{
+				if (TheMarkers[1].id == 2)
+				{
+					movementMarker = TheMarkers[1];
+					changePosition(movementMarker);
+				}
+				else
+				{
+					cameraMarker = TheMarkers[1];
+					changeCamera(cameraMarker);
+				}
+
+			}
+			std::cout << "Marker id: " << TheMarkers[0].id << "\n";
+
+		}
+
+		ourShader.setMat4("view", m_view1);
+		ourShader.setVec3("viewPos", current_pos1);
+
+
+		ourShader.setVec3("light.direction", -1.0f, .0f, -1.0f);
+
+		// light properties
+		ourShader.setVec3("light.ambient", 0.5f, 0.5f, 0.5f);
+		ourShader.setVec3("light.diffuse", 0.75f, 0.75f, 0.75f);
+		ourShader.setVec3("light.specular", 1.0f, 1.0f, 1.0f);
+
+		// material properties
+		ourShader.setFloat("material.shininess", 1.0f);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[2]);
+		// render object
+		glBindVertexArray(tools->m_VAOs[3]);
+
+		// calculate the model matrix for each object and pass it to shader before drawing
+
+		model = glm::mat4(1.0f);
+		// sets model matrix
+		ourShader.setMat4("model", model2);
+
+		// draws
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glBindVertexArray(0);
+		glUseProgram(0);
+		//shader 2
+		ourShader.use();
+
+		// render object
+		glBindVertexArray(tools->m_VAOs[2]);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
+		// calculate the model matrix for each object and pass it to shader before drawing
+
+		//model2 = glm::translate(model2, glm::vec3(0.2f, 0, 0));
+		// sets model matrix
+		ourShader.setMat4("view", m_view1);
+		ourShader.setVec3("viewPos", current_pos);
+		ourShader.setMat4("model", model);
+		// draws
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glBindVertexArray(0);
+
+		ourShader.setInt("material.specular", 0);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[2]);
+		glBindVertexArray(tools->m_VAOs[1]);                 //VAOs[1] is floor
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glBindVertexArray(0);
+
+		glUseProgram(0);
+
+
+		
+		// Prepare transformations
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
+
+		ourShader2D.use();
+		screen_width = 2.0f;
+		projection2D = glm::ortho(0.0f, (float)SCR_WIDTH, 0.0f, (float)SCR_HEIGHT, -1.0f, 1.0f);
+		model2D = glm::translate(glm::mat4(1.0f), glm::vec3((float)SCR_WIDTH / 2.0f - 160.0f, 540.0f, 0.f));
 
 		ourShader2D.setMat4("projection2D", projection2D);
 		//std::cout << "glGetUniformLocation " << " :" << glGetUniformLocation(ourShader2D.ID, "projection2D");
