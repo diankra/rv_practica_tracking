@@ -77,8 +77,8 @@ void changeCamera(aruco::Marker cameraMarker)
 	current_pos = glm::vec3(-cameraMarker.Tvec.at<float>(0, 0),
 		cameraMarker.Tvec.at<float>(1, 0),
 		-cameraMarker.Tvec.at<float>(2, 0));
-	//current_pos1 = current_pos - glm::vec3(EyeSeparation/2, 0, 0);
-	//current_pos = current_pos + glm::vec3(EyeSeparation / 2, 0, 0);
+	current_pos1 = current_pos - glm::vec3(EyeSeparation/2, 0, 0);
+	current_pos = current_pos + glm::vec3(EyeSeparation / 2, 0, 0);
 
 	cv::Mat current_rotation;
 	cv::Rodrigues(cameraMarker.Rvec, current_rotation);
@@ -131,7 +131,7 @@ void changePosition(aruco::Marker movementMarker)
 	glm::mat4 rotateAxis = rotateZ * rotateY * rotateX;
 	model2 = trans * rotateAxis;
 }
-void render(Shader ourShader2D, Shader ourShader, glm::mat4 projection, glm::mat4 modelview)
+void render(Shader ourShader2D, Shader ourShader, glm::mat4 projection)
 {
 	//// create transformations
 	glm::mat4 current_view = glm::mat4(1.0f);
@@ -140,43 +140,9 @@ void render(Shader ourShader2D, Shader ourShader, glm::mat4 projection, glm::mat
 
 	// pass transformation matrices to the shader
 	ourShader.setMat4("projection", projection);
-	//ID del que se mueve: 2
-	//ID del quieto: 1
-	aruco::Marker cameraMarker; //Este es el marker que mueve la cámara (el que te pones en la frente)
-	aruco::Marker movementMarker; //Este es el marker que mueve el segundo cubo
+	
 
-	if (TheMarkers.size() > 0)
-	{
-
-		if (TheMarkers[0].id == 1)
-		{
-			cameraMarker = TheMarkers[0];
-			changeCamera(cameraMarker);
-		}
-		else
-		{
-			movementMarker = TheMarkers[0];
-			changePosition(movementMarker);
-		}
-		if (TheMarkers.size() > 1)
-		{
-			if (TheMarkers[1].id == 2)
-			{
-				movementMarker = TheMarkers[1];
-				changePosition(movementMarker);
-			}
-			else
-			{
-				cameraMarker = TheMarkers[1];
-				changeCamera(cameraMarker);
-			}
-
-		}
-		std::cout << "Marker id: " << TheMarkers[0].id << "\n";
-
-	}
-
-	ourShader.setMat4("view", modelview);
+	ourShader.setMat4("view", m_view);
 	ourShader.setVec3("viewPos", current_pos);
 
 
@@ -378,6 +344,41 @@ int main(int argc, char **argv)
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
 
+		//ID del que se mueve: 2
+	//ID del quieto: 1
+		aruco::Marker cameraMarker; //Este es el marker que mueve la cámara (el que te pones en la frente)
+		aruco::Marker movementMarker; //Este es el marker que mueve el segundo cubo
+
+		if (TheMarkers.size() > 0)
+		{
+
+			if (TheMarkers[0].id == 1)
+			{
+				cameraMarker = TheMarkers[0];
+				changeCamera(cameraMarker);
+			}
+			else
+			{
+				movementMarker = TheMarkers[0];
+				changePosition(movementMarker);
+			}
+			if (TheMarkers.size() > 1)
+			{
+				if (TheMarkers[1].id == 2)
+				{
+					movementMarker = TheMarkers[1];
+					changePosition(movementMarker);
+				}
+				else
+				{
+					cameraMarker = TheMarkers[1];
+					changeCamera(cameraMarker);
+				}
+
+			}
+			std::cout << "Marker id: " << TheMarkers[0].id << "\n";
+
+		}
 		//Pasada de render numero 1
 		glColorMask(false, true, true, false);
 		// activate shader
@@ -392,18 +393,19 @@ int main(int argc, char **argv)
 		right = c * NearClipPlane / Convergence;
 		glm::mat4 projection_left_eye = glm::frustum(left, right, bottom, top, NearClipPlane, FarClipPlane);
 		
-		
-		render(ourShader2D, ourShader, projection_left_eye, m_view);
+		glm::mat4 projection = glm::mat4(1.0f);
+		projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+		render(ourShader2D, ourShader, projection_left_eye);
 
 		glClear(GL_DEPTH_BUFFER_BIT);
-
-		//Render numero 2
-		glColorMask(true, false, false, false); //FILTRO ULTIMO
-		// activate shader
+				// activate shader
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, tools->m_textures[0]);
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, tools->m_textures[1]);
+		//Render numero 2
+		glColorMask(true, false, false, false); //FILTRO ULTIMO
+
 		ourShader.use();
 		// Ojo derecho: Para estereoscopía bien
 		top = NearClipPlane * tan(FOV / 2);
@@ -414,9 +416,8 @@ int main(int argc, char **argv)
 		left = -c * NearClipPlane / Convergence;
 		right = b * NearClipPlane / Convergence;
 		glm::mat4 projection_right_eye = glm::frustum(left, right, bottom, top, NearClipPlane, FarClipPlane);
-		//glm::mat4 projection = glm::mat4(1.0f);
-		//projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
-		render(ourShader2D, ourShader, projection_right_eye, m_view);
+		
+		render(ourShader2D, ourShader, projection_right_eye);
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		glfwSwapBuffers(window);
 		glfwPollEvents();
